@@ -6,13 +6,14 @@ const multer = require("multer");
 const fs = require("fs");
 const path = require("path");
 const rateLimit = require("express-rate-limit");
-const parseDeadlinesFromText = require("./helpers/deadlineParser");
 const fetch = require("node-fetch");
+const parseDeadlinesFromText = require("./helpers/deadlineParser");
 
-// 🔥 NEW: Import Slack Route
+// 🔥 Slack integration route
 const slackRoute = require("./routes/slack");
 
 dotenv.config();
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -40,7 +41,7 @@ app.use(limiter);
 const upload = multer({
   dest: "uploads/",
   fileFilter: (req, file, cb) => {
-    const allowedTypes = ["audio/mpeg", "audio/wav"];
+    const allowedTypes = ["audio/mpeg", "audio/wav", "audio/mp3"];
     if (!allowedTypes.includes(file.mimetype)) {
       return cb(new Error("Only .mp3 and .wav files are allowed"));
     }
@@ -48,10 +49,10 @@ const upload = multer({
   },
 });
 
-// 🔥 NEW: Slack route
+// Routes
 app.use("/api/send-to-slack", slackRoute);
 
-// Test route
+// Root route
 app.get("/", (req, res) => {
   res.send("✅ Clearmeet AI backend is running!");
 });
@@ -74,18 +75,13 @@ You are a meeting assistant. Read the following transcript and extract:
 
 Transcript:
 ${transcript}
-`;
+    `;
 
     const togetherRes = await axios.post(
       "https://api.together.xyz/v1/chat/completions",
       {
         model: "mistralai/Mixtral-8x7B-Instruct-v0.1",
-        messages: [
-          {
-            role: "user",
-            content: prompt,
-          },
-        ],
+        messages: [{ role: "user", content: prompt }],
         max_tokens: 1024,
         temperature: 0.4,
         top_p: 0.9,
@@ -158,7 +154,7 @@ app.post("/api/transcribe", upload.single("audio"), async (req, res) => {
           fs.unlinkSync(filePath);
           return res.status(500).json({ error: polling.data.error });
         } else {
-          setTimeout(pollTranscription, 3000); // Retry
+          setTimeout(pollTranscription, 3000); // Retry polling
         }
       } catch (pollError) {
         fs.unlinkSync(filePath);
